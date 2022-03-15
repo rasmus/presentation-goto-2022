@@ -1,0 +1,1145 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Practical event sourcing with EventFlow</title>
+
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+		<link rel="stylesheet" href="dist/theme/black.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="plugin/highlight/monokai.css">
+
+		<style>
+			.reveal h1, .reveal h2, .reveal h3, .reveal h4, .reveal h5 {
+				text-transform: none;
+			}
+
+			.variable {
+				color: #a6e22e;
+			}
+
+			.comment {
+				color: #75715e;
+			}
+
+			.important {
+				color: #f92672;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<section data-background-image="pics/goto-start.png" data-background-size="contain" data-transition="fade">
+					</section>
+				</section>
+
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<!-- === -->
+					<section data-transition="fade">
+						<img src="pics/with-contour.svg" style="height: 180px; margin: 0 auto 1rem auto; background: transparent;" class="demo-logo">
+						<h2>Practical event sourcing<br/> with EventFlow</h2>
+						<p>
+							by Rasmus Mikkelsen
+						</p>
+						<p>
+							<u>https://github.com/rasmus</u>
+						</p>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Me?</h3>
+						<ul>
+							<li class="fragment">
+								eBay/Schibsted at DBA, Bilbasen and Bilinfo
+								<ul>
+									<li>Backend developer</li>
+									<li>DevOps engineer</li>
+									<li>Infrastructure architect</li>
+									<li>SiteOps and on-call</li>
+								</ul>
+							</li>
+							<li class="fragment">
+								Working as SRE at Schibsted Data & Tech
+								<ul>
+									<li>Support companies with ~100 k8s clusters</li>
+								</ul>
+							</li>
+							<li class="fragment">Created EventFlow, an open source project</li>
+							<li class="fragment">First time doing a public talk 😬</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>Schibsted originally created Varnish</li>
+							</ul>
+						</aside>
+					</section>
+					
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>This talk</h3>
+						<ul>
+							<li class="fragment">Brief introduction to event sourcing</li>
+							<li class="fragment">See how to get started with event sourcing</li>
+							<li class="fragment">Convince you not to use event sourcing</li>
+							<li class="fragment">... then talk about when use it</li>
+						</ul>
+					</section>
+				</section>
+
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<!-- === -->
+					<section data-transition="fade">
+						<h2>Introduction to <br/>event sourcing</h2>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Traditional service</h3>
+						<img class="r-stretch" src="pics/crud.png" />
+					</section>
+					
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Traditional data store</h3>
+						<!-- Maybe remove this one -->
+						<table>
+							<thead>
+								<tr>
+									<td>ID</td>
+									<td>FullName</td>
+									<td>Age</td>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td><code>1</code></td>
+									<td><code>rasmus mikkelsen</code></td>
+									<td><code>21</code></td>
+								</tr>
+								<tr></tr>
+							</tbody>
+						</table>
+						<br/><br/>
+						<ul>
+							<li><span class="variable">ID</span> is a unique key</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>May contain several supporting fields</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Traditional data store</h3>
+						<ul>
+							<li>CRUD: Create, read, update, delete</li>
+							<li class="fragment">Stores current state</li>
+							<li class="fragment">Audit is stored separate (for critical systems)</li>
+							<li class="fragment">Awesome support in languages and ORMs</li>
+						</ul>
+						<aside class="notes">
+						</aside>
+					</section>
+					<section data-transition="fade">
+						<h3>CRUD data stores</h3>
+						<pre class="fragment fade-out" data-fragment-index="1"><code data-trim>
+							{
+							  "id": 1,
+							  "fullName": "rasmus",
+							  "age": 21
+							}
+						</code></pre>
+						<pre class="fragment fade-in-then-out" data-fragment-index="1"><code data-trim>
+							{
+							  "id": 1,
+							  "fullName": "rasmus",
+							  "age": 23 // age edited
+							}
+						</code></pre>
+						<pre class="fragment" data-fragment-index="2"><code data-trim>
+							{
+							  "id": 1,
+							  "fullName": "rasmus",
+							  "age": 25 // age edited again
+							}
+						</code></pre>
+
+						<aside class="notes">
+							<ul>
+								<li>May contain other useful fields to help</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing</h3>
+						<ul>
+							<li class="fragment">Stores changes as individual objects</li>
+							<li class="fragment">Append only</li>
+							<li class="fragment">Current state is sum of all changes applied in order</li>
+							<li class="fragment">Implementations often custom made</li>
+							<li class="fragment">Design is often a result of infrastructure preference</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>
+									Design
+									<ul>
+										<li>How are events handled in infrastructure</li>
+										<li>How vital is data integrity</li>
+									</ul>
+								</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing</h3>
+						<table>
+							<thead>
+								<tr>
+									<td>ID</td>
+									<td>Version</td>
+									<td>Event</td>
+									<td>Data</td>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td><code>1</code></td>
+									<td><code>1</code></td>
+									<td><code>Created</code></td>
+									<td>
+										<code>
+										fullName: rasmus m<br/>
+										age: 21
+										</code>
+									</td>
+								</tr>
+								<tr class="fragment">
+									<td><code>1</code></td>
+									<td><code>2</code></td>
+									<td><code>NewAge</code></td>
+									<td><code>age: 23</code></td>
+								</tr>
+								<tr class="fragment">
+									<td><code>1</code></td>
+									<td><code>3</code></td>
+									<td><code>NewAge</code></td>
+									<td><code>age: 25</code></td>
+								</tr>
+							</tbody>
+						</table>
+						<br/>
+						<ul>
+							<li class="fragment"><code class="variable">ID</code> and <code class="variable">Version</code> form an unique key</li>
+							<li class="fragment"><code class="variable">Version</code> specifies the order of events</li>
+						</ul>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing</h3>
+						<pre><code data-trim class="hljs json">
+							{
+							  "id": 1,
+							  "version": 1,
+							  "type": "Created",
+							  "meta" : {
+								  "ip": "147.29.150.82",
+								  "via": "browser"
+								},
+							  "event:" {
+							    "fullName": "rasmus mikkelsen",
+							    "age": 21
+							  }
+							}
+						</code></pre>
+						<ul>
+							<li class="fragment">Events have two components, data and metadata</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>
+									Metadata often contains useful information
+									<ul>
+										<li>Source IP</li>
+										<li>Security context</li>
+										<li>User context, e.g. enabled features</li>
+									</ul>
+								</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing</h3>
+						<pre><code data-trim class="hljs json">
+							{
+							  "id": 1,
+							  "version": 2,
+							  "type": "NewAge",
+							  "meta" : {
+							    "ip": "147.29.150.82",
+							    "via": "browser"
+							  },
+							  "event": {
+								  "age": 23
+							  }
+						  }
+						</code></pre>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing</h3>
+						<pre><code data-trim class="hljs json">
+							{
+							  "id": 1,
+							  "version": 3,
+							  "type": "NewAge",
+							  "meta" : {
+							    "ip": "103.228.53.155",
+							    "via": "mobile-api"
+							  },
+							  "event": {
+								  "age": 25
+							  }
+						  }
+						</code></pre>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing key points</h3>
+						<ul>
+							<li class="fragment">Current state is the sum of <em>all</em> events, you need to apply every single one in order</li>
+							<li class="fragment"><code class="variable">ID</code> and <code class="variable">Version</code> form a unique key</li>
+							<li class="fragment">Events are stored in an append only model</li>
+							<li class="fragment">Events are immutable - <em><u>never ever, ever</u></em> change them</li>
+							<li class="fragment">Event often relates to some business/user action</li>
+							<li class="fragment">Provides an excellent audit trail</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>Username not present in last event, need to read them all</li>
+							</ul>
+						</aside>
+					</section>
+				</section>
+
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>
+							<img src="pics/with-contour.svg" style="height: 80px; margin: 0 auto 0rem auto; background: transparent;" class="demo-logo"><br/>
+							EventFlow<br/>
+						</h3>
+						<ul>
+							<li class="fragment">Created in 2015</li>
+							<li class="fragment">MIT licensed</li>
+							<li class="fragment">Written .NET/C#
+								<ul>
+									<li class="fragment">Concepts are similar to other frameworks and languages</li>
+								</ul>
+							</li>
+						</ul>
+						<br/><br/>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>General event sourcing concepts</h3>
+						<ul>
+							<li class="fragment" data-fragment-index="1"><strong class="important">Command:</strong> represents a request to change the system</li>
+							<li class="fragment" data-fragment-index="2"><strong class="important">Aggregate:</strong> an entity, or group of entities, that are viewed as a single unit and updated together</li>
+							<li class="fragment" data-fragment-index="3"><strong class="important">(Aggregate) event:</strong> represents something that <u>has</u> happened, thus cannot be changed</li>
+							<p class="fragment" data-fragment-index="1"><small><em class="comment">Will be illustrated shortly</em></small></p>
+						</ul>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Additional EventFlow concepts</h3>
+						<ul>
+							<li class="fragment" data-fragment-index="1"><strong class="important">Command handler:</strong> Maps a specific command to an aggregate</li>
+							<li class="fragment" data-fragment-index="2"><strong class="important">Domain event:</strong> Wraps the aggregate event and metadata</li>
+							<p class="fragment" data-fragment-index="1"><small><em class="comment">Will be illustrated next slide</em></small></p>
+						</ul>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Overview of EventFlow concepts</h3>
+						<img class="r-stretch" src="pics/example-overview.png" />
+						<aside class="notes">
+							<ul>
+								<li>Very similar across event sourcing frameworks and languages</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Command</h3>
+						<img class="r-stretch" src="pics/example-overview-command.png" />
+					</section>					
+					<section data-transition="fade">
+						<h3>Command</h3>
+						<pre><code data-trim class="hljs csharp">
+						public class CreateUserCommand : Command&lt;UserAggregate, UserId&gt;
+						{
+							public string FullName { get; }
+							public int Age { get; }
+
+							public CreateUserCommand(
+								UserId aggregateId,
+								string fullName, int age)
+								: base(aggregateId)
+							{
+								FullName = fullName;
+								Age = age;
+							}
+						}
+						</code></pre>
+						<ul>
+							<li>Value object that represents an action to take</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li></li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Command handler</h3>
+						<img class="r-stretch" src="pics/example-overview-command-handler.png" />
+					</section>					
+					<section data-transition="fade">
+						<h3>Command handler</h3>
+						<pre><code data-trim class="hljs csharp">
+						public class CreateUserCommandHandler :
+							ICommandHandler&lt;UserAggregate,UserId,
+								IExecutionResult,CreateUserCommand&gt;
+						{
+							public Task&lt;IExecutionResult&gt; ExecuteCommandAsync(
+								UserAggregate aggregate,
+								CreateUserCommand command,
+								CancellationToken cancellationToken)
+							{
+								var result = aggregate.Create(
+									command.FullName, command.Age);
+								return Task.FromResult(result);
+							}
+						}
+						</code></pre>
+						<ul>
+							<li>1-to-1 relation to a specific command</li>
+							<li>Defines how to apply a command to the aggregate</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li></li>
+							</ul>
+						</aside>
+					</section>
+					
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Aggregate</h3>
+						<img class="r-stretch" src="pics/example-overview-aggregate.png" />
+					</section>					
+					<section data-transition="fade">
+						<h3>Aggregate</h3>
+						<pre><code data-trim class="hljs csharp">
+						public class UserId : Identity&lt;UserId&gt;
+						{
+							public UserId(string value) : base(value) {}
+						}
+						</code></pre>
+						<pre class="fragment"><code data-trim class="hljs csharp">
+						public class UserAggregate : AggregateRoot&lt;UserAggregate, UserId&gt;
+						{
+							// Public to do easy/lazy testing
+							public string? FullName { get; private set; }
+							public int? Age { get; private set; }
+						
+							public UserAggregate(UserId id) : base(id) { }
+
+							// We'll fill in the rest later
+						}
+						</code></pre>
+						<aside class="notes">
+							<ul>
+								<li>We use EventFlow supplied class for identity, but you can bring your own</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Add method to mutate aggregate</h3>
+						<pre><code data-trim class="hljs csharp">
+						public class UserAggregate : AggregateRoot&lt;UserAggregate, UserId&gt;
+						{
+							// ...
+
+							public IExecutionResult Create(string fullName, int age)
+							{
+								if (age &lt; 13)
+									return ExecutionResult.Failed("Too young");
+								
+								Emit(new CreatedEvent(fullName, age), GetMetadata());
+
+								return ExecutionResult.Success();
+							}
+						}
+						</code></pre>
+						<ul>
+							<li class="fragment">Can <code class="variable">Emit</code> <span class="important">zero</span> or <span class="important">or more</span></li>
+							<li class="fragment"><span class="important">Zero</span> represents "no change"</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li><code>Emit</code> adds the event, has an optional argument for custom metadata</li>
+								<li><code>GetMetadata</code> custom method that fetches a <code>Dictionary&lt;string,string&gt;</code> with metadata</li>
+								<li>Events are stored are committed when the method returns</li>
+								<li>We don't set <code>Username</code> or <code>Password</code> here</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Command</h3>
+						<img class="r-stretch" src="pics/example-overview-event.png" />
+					</section>					
+					<section data-transition="fade">
+						<h3>Event for user creation</h3>
+						<pre><code data-trim class="hljs csharp">
+						[EventVersion("Created", 1)]
+						public class CreatedEvent : AggregateEvent&lt;UserAggregate, UserId&gt;
+						{
+							public string FullName { get; }
+							public int Age { get; }
+					
+							public CreatedEvent(
+								string fullName,
+								int age)
+							{
+								FullName = fullName;
+								Age = age;
+							}
+						}
+						</code></pre>
+						<aside class="notes">
+							<ul>
+								<li>We use past tense as an event always represents something that has happened, not going to happen</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>The <code class="variable">Apply</code> method</h3>
+						<pre><code data-trim class="hljs csharp">
+						public class UserAggregate : AggregateRoot&lt;UserAggregate, UserId&gt;
+						{
+							// ...
+
+							public void Apply(CreatedEvent e)
+							{
+								FullName = e.FullName;
+								Age = e.Age;
+							}
+						}
+						</code></pre>
+						<ul>
+							<li>Responsible to updating <u>current</u> in-memory state</li>
+							<li class="fragment">
+								Executed on
+								<ul>
+									<li>... every <code class="variable">Emit</code></li>
+									<li class="fragment">... <u>every time</u> the aggregate is loaded</li>
+								</ul>
+							</li>
+							<li class="fragment">One <code class="variable">Apply</code> for every event type</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li></li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Overview again</h3>
+						<img class="r-stretch" src="pics/example-overview.png" />
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>... and in code</h3>
+						<pre><code data-trim class="hljs csharp">
+						// Create initial input
+						var (userId, fullName, age) = (UserId.New, "rasmus mikkelsen", 21);
+			
+						// Send command via command bus
+						var command = new CreateUserCommand(userId, fullName, age);
+						var executionResult = await _commandBus.PublishAsync(command);
+						// executionResult.IsSuccess == true;
+			
+						// Fetch aggregate directly
+						var userAggregate = await _aggregateStore.LoadAsync&lt;UserAggregate&gt;(
+							userId);
+
+						// userAggregate.FullName == "rasmus mikkelsen";
+						// userAggregate.Age == 21;
+						</code></pre>
+						<aside class="notes">
+							<ul>
+								<li><code>executionResult.IsSuccess</code> tells if the command was successful</li>
+							</ul>
+						</aside>
+					</section>
+
+				</section>
+
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>All good<span class="fragment">, but what about reads?</span></h3>
+						<ul class="fragment">
+							<li>We <em>could</em> just load the aggregate 🤔</li>
+							<li class="fragment">... but <em>really</em> slow if enumerating aggregates</li>
+							<li class="fragment">... want to query by something else than <span class="variable">ID</span> </li>
+							<li class="fragment">We need something else</li>
+						</ul>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>CQRS to the rescue 🦸‍♀️</h3>
+						<ul>
+							<li class="fragment">
+								<span class="important">Command</span>
+								<span class="fragment">and <span class="important">Query</span></span>
+								<span class="fragment important">Responsibility</span>
+								<span class="fragment important">Segregation</span>
+							</li>
+							<li class="fragment">Simply separate write and read operations</li>
+							<li class="fragment">
+								Often to different types of datastores
+								<span class="fragment">, e.g.
+									<ul>
+										<li><span class="important">Write:</span> MS SQL Server, PostgreSQL, ...</li>
+										<li><span class="important">Read:</span> Elasticsearch, Redis, ...</li>
+									</ul>
+								</span>
+							</li>
+							<li class="fragment">Fits very nicely with event sourcing</li>
+						</ul>
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing + CQRS = ❤️</h3>
+						<img class="r-stretch" src="pics/cqrs-write.png" />
+					</section>
+					
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing + CQRS = ❤️</h3>
+						<img class="r-stretch" src="pics/cqrs.png" />
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event listeners in EventFlow</h3>
+						<pre><code data-trim class="hljs csharp">
+						public class UpdateReadModelWithCreatedUser :
+							ISubscribeSynchronousTo&lt;UserAggregate, UserId, CreatedEvent&gt;
+						{
+							public Task HandleAsync(
+								IDomainEvent&lt;UserAggregate, UserId, CreatedEvent&gt; domainEvent,
+								CancellationToken cancellationToken)
+							{
+								// Do awesome update of read model here \o/ ... the easy
+								// solution is to simply read the aggregate and map it to a
+								// read model. Remember to take the version into account!
+								
+								return Task.CompletedTask;
+							}
+						}
+						</code></pre>
+						<aside class="notes">
+							<ul>
+								<li>Simple: load aggregate and map it to a read model</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>All done?</h3>
+						<ul>
+							<li class="fragment">
+								<span class="fragment">✅</span>
+								Optimized read models
+							</li>
+							<li class="fragment">
+								<span class="fragment">✅</span>
+								Cool domain using event sourcing
+							</li>
+							<li class="fragment">
+								<span class="fragment">🥺</span>
+								... need <span class="variable">FirstName</span> and <span class="variable">LastName</span>, not <span class="variable">FullName</span>
+							</li>
+						</ul>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Problems</h3>
+						<ul>
+							<li class="fragment">Already live with millions of <span class="variable">CreatedEvent</span></li>
+							<li class="fragment">Need <span class="variable">v2</span> event with <span class="variable">FirstName</span> and <span class="variable">LastName</span></li>
+							<li class="fragment">Not allowed to delete/change events</li>
+							<li class="fragment">Critical system, boss says "ZERO downtime!"</li>
+						</ul>
+					</section>
+
+				</section>
+
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Upcast/upgrade events</h3>
+						<p class="comment"><small>... for when changes to the domain happen.</small></p>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Upgraders in EventFlow</h3>
+						<ul>
+							<li class="fragment">Executed when events are <span class="important">read</span></li>
+							<li class="fragment">Can has as many as you like<span class="fragment"> (performance)</span></li>
+							<li class="fragment">
+								Keep them simple!
+								<ul class="fragment">
+									<li><span class="variable">v1</span> to <span class="variable">v2</span> upgrade</li>
+									<li class="fragment"><span class="variable">v2</span> to <span class="variable">v3</span> upgrade</li>
+								</ul>
+							</li>
+							<li class="fragment">Executed in alphabetical order</li>
+						</ul>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Upgraders in EventFlow</h3>
+						<img class="r-stretch" src="pics/upgrades.png" />
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3><span class="variable">V2</span> event</h3>
+						<pre><code data-trim class="hljs csharp">
+						[EventVersion("Created", 2)]
+						public class CreatedEventV2 : AggregateEvent&lt;UserAggregate, UserId&gt;
+						{
+							public string FirstName { get; }
+							public string LastName { get; }
+							public int Age { get; }
+					
+							public CreatedEvent(
+								string firstName, string lastName, int age)
+							{
+								FullName = fullName; LastName = lastName; Age = age;
+							}
+						}
+						</code></pre>
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event upgrader in EventFlow</h3>
+						<pre><small><code data-trim class="hljs csharp">
+						public class UserCreatedEventUpgrader : IEventUpgrader&lt;UserAggregate, UserId&gt;
+						{
+							public IEnumerable&lt;IDomainEvent&lt;UserAggregate, UserId&gt;&gt; Upgrade(
+								IDomainEvent&lt;UserAggregate, UserId&gt; domainEvent)
+							{
+								var createdEvent = domainEvent as IDomainEvent&lt;UserAggregate, UserId, CreatedEvent&gt;;
+								if (createdEvent == null) {
+									yield return domainEvent;
+									yield return break;
+								}
+
+								var nameParts = createdEvent.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+								var createdEventV2 = _domainEventFactory.Upgrade&lt;UserAggregate, UserId&gt;(
+									domainEvent,
+									new CreatedEventV2(
+										nameParts[0],
+										nameParts[1],
+										createdEvent.Age
+									));
+
+								yield return createdEventV2;
+							}
+						}
+						</code></small></pre>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Updated aggregate</h3>
+						<pre><code data-trim class="hljs csharp">
+						public class UserAggregate : AggregateRoot&lt;UserAggregate, UserId&gt;
+						{
+							// Public to do easy/lazy testing
+							public string? FirstName { get; private set; }
+							public string? LastName { get; private set; }
+							public int? Age { get; private set; }
+						
+							public UserAggregate(UserId id) : base(id) { }
+
+							// We'll fill in the rest later
+						}
+						</code></pre>
+						<aside class="notes">
+							<ul>
+								<li>Made the properties public to ease testing</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Updated aggregate <code class="variable">Apply</code> method</h3>
+						<pre><code data-trim class="hljs csharp">
+						public class UserAggregate : AggregateRoot&lt;UserAggregate, UserId&gt;
+						{
+							// ...
+
+							// We delete the old Apply method for the old event
+
+							public void Apply(CreatedEventV2 e)
+							{
+								FirstName = e.FirstName;
+								LastName = e.LastName;
+								Age = e.Age;
+							}
+						}
+						</code></pre>
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Update aggregate mutate method</h3>
+						<pre><code data-trim class="hljs csharp">
+						public class UserAggregate : AggregateRoot&lt;UserAggregate, UserId&gt;
+						{
+							public IExecutionResult Create(
+								string firstName, string lastName, int age)
+							{
+								if (age &lt; 13)
+									return ExecutionResult.Failed("Too young");
+
+								Emit(new CreatedEventV2(firstName, lastName, age), GetMeta());
+
+								return ExecutionResult.Success();
+							}
+						}
+						</code></pre>
+						<ul>
+							<li class="fragment">... and update the <span class="variable">CreateUserCommand</span></li>
+							<li class="fragment">... and update the <span class="variable">CreateUserCommandHandler</span></li>
+						</ul>
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Domain <span class="variable">v2</span> go-live?</h3>
+					</section>
+					
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Domain <span class="variable">v2</span> go-live 😭</h3>
+						<img class="r-stretch " src="pics/wtf.png" />
+					</section>
+					
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Updated domain <span class="variable">v2</span> go-live plan</h3>
+						<ul>
+							<li class="fragment">🤔 multiple instances, <span class="variable">v1</span> and <span class="variable">v2</span> will both be live at the same doing rollout</li>
+							<li class="fragment">1) Rollout <span class="variable">v1.1</span> that is able to <span class="important">read</span> both <span class="variable">v1</span> <u>and</u> <span class="variable">v2</span></li>
+							<li class="fragment">2) Rollout <span class="variable">v2</span> that <span class="important">writes</span> <span class="variable">v2</span> events, without <span class="variable">v1</span></li>
+							<li class="fragment">Remember to <span class="important"><u>keep</u></span> old events, these are needed for reading and upgrading</li>
+							<li class="fragment">Success 🎉</li>
+						</ul>
+					</section>
+
+				</section>
+				
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing, the bad parts</h3>
+						<ul>
+							<li class="fragment">A lot of ceremony. Any action requires a lot of code</li>
+							<li class="fragment">A lot of different ways to fill in the missing pieces</li>
+							<li class="fragment">Poor performance on writes<span class="fragment">, exceptionally bad with many events</span></li>
+							<li class="fragment">Too many concurrent updates can make a service useless</li>
+							<li class="fragment">Read models become eventually consistent, which adds complexity</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>2) Missing pieces: e.g. access external services from within the domain</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing, the good parts</h3>
+						<ul>
+							<li class="fragment">Fits very nicely with an event drive architecture</li>
+							<li class="fragment">Awesome together with CQRS<span class="fragment">, but that's just for reads</span></li>
+							<li class="fragment">Can provide an excellent link do user/domain actions</li>
+							<li class="fragment">Automatic retries for concurrent updates</li>
+						</ul>
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Don't use event souring...</h3>
+						<p class="comment"><small>... it leads to pain and suffering... sometimes.</small></p>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Don't use it in the wrong places</h3>
+						<ul>
+							<li class="fragment">Not in services with a <em>lot of</em> changes</li>
+							<li class="fragment">Not in high performance/concurrent writes</li>
+							<li class="fragment">Not in services with low importance</li>
+						</ul>
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Don't use it for <em>fun</em> <span class="fragment">at work</span><span class="fragment">,<br/> unless doing an experiment or to learn</span></h3>
+						<ul>
+							<li class="fragment">Don't force the decision to use event sourcing</li>
+							<li class="fragment">Don't enable every tool in the toolbox, start small</li>
+							<li class="fragment">Don't make simple domains overly complicated</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>Start small: You can skip read models and merely use the aggregates (not pretty)</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Don't make first project<br/> too complicated</h3>
+						<ul>
+							<li class="fragment">If you are unsure of the domain, it can cause a lot of breaking changes<span class="fragment">, which requires a lot of work</span></li>
+							<li class="fragment">Don't use all the theories, initially agree how to do it</li>
+							<li class="fragment"><u>Many</u> opinions on how to do &ldquo;proper&rdquo; event sourcing. Agree on what to do (and not)</li>
+							<li class="fragment">Be conscious about har deep into the mythical DDD waters you want to go</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>What are you allowed to do in command handlers</li>
+								<li>What are you allowed to do in aggregates</li>
+								<li>Should commands do validation or the aggregates</li>
+								<li>Do we create small and many events or few and big</li>
+								<li>Plenty of blogs and literature</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Don't underestimate<br/> storage usage<span class="fragment important">!</span><span class="fragment important">!</span><span class="fragment important">!</span></h3>
+						<ul>
+							<li class="fragment">Developers <span class="fragment">❤️💪✨</span></li>
+							<li class="fragment">SiteOps <span class="fragment">🤮🤯🤦</span></li>
+							<li class="fragment">Append only model</li>
+							<li class="fragment">Events are stored <u>forever</u><span class="fragment">, by default</span></li>
+							<li class="fragment">Define <u>when</u> you archive and/or delete events</li>
+							<li class="fragment">Snapshot is your friend for long lived aggregates</li>
+						</ul>
+						<aside class="notes">
+						</aside>
+					</section>
+					
+				</section>
+
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Consider event souring if...</h3>
+						<p class="comment"><small>... you are absolutely sure</small></p>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>If auditing is important</h3>
+						<ul>
+							<li class="fragment">Very easy to document what happened</li>
+							<li class="fragment">View flow leading up to a complicated bug</li>
+							<li class="fragment">Reproduce bugs in tests by injecting events</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>Often others systems use events</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>If data recovery is important</h3>
+						<ul>
+							<li class="fragment">An append only model, hard(er) to delete data</li>
+							<li class="fragment">Fix data corruption caused by bug</li>
+							<li class="fragment">Fix data corruption caused by wrongful/malicious edits</li>
+							<li class="fragment">Easy restore aggregates to a specific time</li>
+							<li class="fragment">In-place fix/skip/map of existing events</li>
+						</ul>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>If it fits within your infrastructure</h3>
+						<ul>
+							<li class="fragment">Event driven (micro) service infrastructure</li>
+							<li class="fragment">... remember to implement anti-corruption</li>
+							<li class="fragment">Supports an eventual consistent architecture</li>
+						</ul>
+						<aside class="notes">
+							<ul>
+								<li>Internal domain events might not be useful outside</li>
+							</ul>
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>A few examples</h3>
+					</section>
+					
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Example - orders</h3>
+						<img class="r-stretch" src="pics/examples-orders.png" />
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Example - listings</h3>
+						<img class="r-stretch" src="pics/examples-listings.png" />
+					</section>
+					
+				</section>
+
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Event sourcing</h3>
+						<ul>
+							<li class="fragment">Is an awesome piece of technology...</li>
+							<li class="fragment">... but typically <u>not</u> the right one</li>
+						</ul>
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<!-- === -->
+					<section data-transition="fade">
+						<h3><span class="fragment" data-fragment-index="1">Do</span> you <span class="fragment" data-fragment-index="1"><em>really</em></span> <em>need</em><br/> event sourcing<br/> for your next project<span class="fragment" data-fragment-index="1">?</span></h3>
+					</section>
+	
+					<!-- === -->
+					<section data-transition="fade">
+						<h3>Questions?</h3>
+						<ul>
+							<li>Rasmus Mikkelsen</li>
+							<li><u>https://github.com/rasmus/</u></li>
+							<li><u>https://docs.geteventflow.net/</u></li>
+						</ul>
+					</section>
+				</section>
+
+				<!-- -------------------------------------------------------- -->
+				<section data-transition="fade">
+					<section data-background-image="pics/goto-end.png" data-background-size="contain">
+					</section>
+				</section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+				controls: false,
+
+				slideNumber: true,
+				slideNumber: 'c/t',
+				showSlideNumber: 'speaker',
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>
