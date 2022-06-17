@@ -1,4 +1,4 @@
-# Presentation GOGO 2022
+# Presentation GOTO Aarhus 2022
 
 This is the talk I did on GOTO Aarhus 2022.
 
