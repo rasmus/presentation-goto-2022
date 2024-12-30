@@ -5,7 +5,7 @@ This is the talk I did on GOTO Aarhus 2022.
 Links
 
 - [GOTO AAR 2022](https://gotoaarhus.com/2022/speakers/2090/rasmus-mikkelsen)
-- [Slides as web page](https://smus.nu/presentation-goto-2022/)
+- [Slides as web page](https://rasmus.github.io/presentation-goto-2022/)
 - [Slides as PDF](https://github.com/rasmus/presentation-goto-2022/raw/develop/slides.pdf)
 
 The slides are created using [RevealJS](https://revealjs.com/).
